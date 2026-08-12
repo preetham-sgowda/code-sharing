@@ -1,0 +1,16 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { ArrowUpRight, Code2, Copy, LogOut, Plus, Trash2 } from 'lucide-react'
+
+export default function DashboardPage() {
+  const [snippets, setSnippets] = useState<any[]>([])
+  const [user, setUser] = useState<any>(null)
+  const [message, setMessage] = useState('Loading your workspace...')
+  useEffect(() => { const supabase = createClient(); supabase.auth.getUser().then(async ({ data }) => { if (!data.user) { window.location.href = '/'; return }; setUser(data.user); const { data: rows, error } = await supabase.from('snippets').select('*').eq('user_id', data.user.id).order('updated_at', { ascending: false }); if (error) setMessage('Unable to load your snippets.'); else { setSnippets(rows ?? []); setMessage('') } }) }, [])
+  async function remove(id: string) { if (!confirm('Are you sure you want to delete this snippet?')) return; const supabase = createClient(); const { error } = await supabase.from('snippets').delete().eq('id', id); if (!error) setSnippets((items) => items.filter((item) => item.id !== id)) }
+  async function copyLink(token: string) { await navigator.clipboard.writeText(`${window.location.origin}/code/${token}`); setMessage('Share link copied.'); setTimeout(() => setMessage(''), 1600) }
+  const publicCount = snippets.filter((item) => item.visibility === 'public').length
+  return <main className="app-page"><header className="simple-header"><a href="/" className="brand"><span className="brand-mark"><Code2 size={17} /></span><span>Code<span className="brand-accent">Share</span></span></a><div className="dashboard-actions"><span className="user-email">{user?.email}</span><button className="secondary-action" onClick={() => createClient().auth.signOut().then(() => window.location.href = '/') }><LogOut size={14} /> Sign out</button></div></header><section className="dashboard"><div className="dashboard-heading"><div><span className="section-kicker">YOUR WORKSPACE</span><h1>Things worth keeping.</h1></div><a className="primary-action" href="/snippets/create"><Plus size={16} /> Create snippet</a></div><div className="stats"><div><strong>{snippets.length}</strong><span>Total snippets</span></div><div><strong>{publicCount}</strong><span>Public</span></div><div><strong>{snippets.length - publicCount}</strong><span>Private</span></div></div>{message && <p className="form-message">{message}</p>}<div className="snippet-table">{snippets.map((snippet) => <div className="snippet-row" key={snippet.id}><div><a href={`/code/${snippet.share_token}`} className="row-title">{snippet.title} <ArrowUpRight size={13} /></a><span className="row-meta">{snippet.language} · updated {new Date(snippet.updated_at).toLocaleDateString()}</span></div><span className={`status-pill ${snippet.visibility}`}>{snippet.visibility}</span><div className="row-actions"><button aria-label="Copy share link" onClick={() => copyLink(snippet.share_token)}><Copy size={15} /></button><a href={`/snippets/${snippet.id}/edit`} aria-label="Edit snippet">Edit</a><button aria-label="Delete snippet" onClick={() => remove(snippet.id)}><Trash2 size={15} /></button></div></div>)}{!snippets.length && !message && <div className="empty-state">No snippets yet. Save the first useful thing.</div>}</div></section></main>
+}
